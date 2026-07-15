@@ -7,10 +7,14 @@ import { ApiResponse } from "../utils/Apiresponse.js";
 const generateAccessAndRefreshTokens = async function(userId){
     try {
         const user = await User.findById(userId);
+        // console.log(user);
+
         const accessToken = await user.generateAccessToken();
         const refreshToken = await user.generateRefreshToken();
 
         user.refreshToken = refreshToken;
+        // console.log(user);
+        
         await user.save();
 
         return {accessToken, refreshToken}
@@ -42,9 +46,13 @@ const registerUser = asyncHandler(async (req, res) =>{
         throw new ApiError(409, "User with email or username already exists.")
     }
 
+    let avatarLocalPath;
+    if(req && req.files && Array.isArray(req.files.avatar) && req.files.avatar[0]){
 
-    //check for images, check for avatar
-    const avatarLocalPath = req.files?.avatar[0]?.path; // multer hame req.body ke saath saath req.files ka access de deta 
+        //check for images, check for avatar
+        avatarLocalPath = req.files?.avatar[0]?.path; // multer hame req.body ke saath saath req.files ka access de deta 
+    }
+
 
     if(!avatarLocalPath){
         throw new ApiError(400, "Avatar file is required")
@@ -123,6 +131,8 @@ const loginUser = asyncHandler(async (req, res) =>{
     }
 
     const {accessToken, refreshToken} = await generateAccessAndRefreshTokens(user._id);
+    // console.log(accessToken, "\n", refreshToken);
+    
 
     const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
 
@@ -140,5 +150,34 @@ const loginUser = asyncHandler(async (req, res) =>{
     )
 })
 
+const logoutUser = asyncHandler(async (req, res)=>{
+    //cookies clear
+    //refreshToken remove
+    await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set:{
+                refreshToken: undefined
+            }
+        },
+        {
+            returnDocument: 'after'
+        }
+    )
 
-export {registerUser, loginUser}
+    const cookieOptions = {
+        httpOnly: true,
+        secure: true
+    }
+
+
+    return res
+    .status(200)
+    .clearCookie("accessToken", cookieOptions)
+    .clearCookie("refreshToken", cookieOptions)
+    .json(new ApiResponse(200, {}, "Logged Out Successfully!"))
+
+})
+
+
+export {registerUser, loginUser, logoutUser}
