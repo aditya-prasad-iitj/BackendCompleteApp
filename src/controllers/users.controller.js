@@ -5,6 +5,7 @@ import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/Apiresponse.js";
 import jwt from "jsonwebtoken";
 import userRouter from "../routes/users.route.js";
+import { deleteCloudinaryFile } from "../utils/rmCloudinaryFile.js";
 
 const generateAccessAndRefreshTokens = async function(userId){
     try {
@@ -316,19 +317,18 @@ const updateUserAvatar = asyncHandler(async (req, res)=>{
             throw new ApiError(400, "Error while uploading on avatar")
         }
 
-        await User.findByIdAndUpdate(
-            req.user?._id,
-            {
-                $set: {
-                    avatar: avatar.url
-                }
-            },
-            {returnDocument: "after"}
-        ).select("-password")
+        const user = await User.findOne(req.user?._id).select("-password");
 
-        res.status(200).json(new ApiResponse(200, {}, "Avatar Updated Successfully!"))
+        deleteCloudinaryFile(user.avatar);
+
+        user.avatar = avatar;
+
+        await user.save({validateBeforeSave: true});
+
+        res.status(200).json(new ApiResponse(200, user, "Avatar Updated Successfully!"))
     }
 })
+
 const updateUserCoverImage = asyncHandler(async (req, res)=>{
 
     const coverImageLocalPath = req.file?.path;
@@ -342,15 +342,13 @@ const updateUserCoverImage = asyncHandler(async (req, res)=>{
             throw new ApiError(400, "Error while uploading cover Image")
         }
 
-        await User.findByIdAndUpdate(
-            req.user?._id,
-            {
-                $set: {
-                    coverImage: coverImage.url
-                }
-            },
-            {returnDocument: "after"}
-        ).select("-password")
+        const user = await User.findOne(req.user?._id).select("-password");
+
+        deleteCloudinaryFile(user.coverImage);
+
+        user.coverImage = coverImage;
+
+        await user.save({validateBeforeSave: true});
 
         res.status(200).json(new ApiResponse(200, {}, "Cover Image Updated Successfully!"))
     }
@@ -362,5 +360,7 @@ logoutUser,
 refreshAccessToken,
 changePassword,
 getCurrentUser,
-updateAccountDetails
+updateAccountDetails,
+updateUserAvatar,
+updateUserCoverImage
 }
